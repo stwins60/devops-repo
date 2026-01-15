@@ -1,0 +1,106 @@
+---
+- name: Configure Automated Backups
+  hosts: all
+  become: yes
+  
+  vars:
+    backup_dir: "/var/backups"
+    backup_retention_days: 7
+    backup_time: "02:00"
+    
+  tasks:
+    - name: Install backup tools
+      apt:
+        name:
+          - rsync
+          - tar
+          - gzip
+        state: present
+    
+    - name: Create backup directory
+      file:
+        path: "{{ backup_dir }}"
+        state: directory
+        mode: '0700'
+    
+    - name: Create backup script
+      copy:
+        content: |
+          #!/bin/bash
+          
+          DATE=$(date +%Y%m%d_%H%M%S)
+          BACKUP_DIR="{{ backup_dir }}"
+          RETENTION_DAYS={{ backup_retention_days }}
+          
+          # Create backup
+          tar -czf "$BACKUP_DIR/backup_$DATE.tar.gz" \
+            /etc \
+            /var/www \
+            /home
+          
+          # Remove old backups
+          find "$BACKUP_DIR" -name "backup_*.tar.gz" -mtime +$RETENTION_DAYS -delete
+          
+          echo "Backup completed: backup_$DATE.tar.gz"
+        dest: /usr/local/bin/backup.sh
+        mode: '0755'
+    
+    - name: Create database backup script
+      copy:
+        content: |
+          #!/bin/bash
+          
+          DATE=$(date +%Y%m%d_%H%M%S)
+          BACKUP_DIR="{{ backup_dir }}/db"
+          
+          mkdir -p "$BACKUP_DIR"
+          
+          # Backup PostgreSQL
+          sudo -u postgres pg_dumpall | gzip > "$BACKUP_DIR/postgres_$DATE.sql.gz"
+          
+          # Remove old backups
+          find "$BACKUP_DIR" -name "postgres_*.sql.gz" -mtime +{{ backup_retention_days }} -delete
+        dest: /usr/local/bin/backup-db.sh
+        mode: '0755'
+      when: "'databases' in group_names"
+    
+    - name: Schedule backup cron job
+      cron:
+        name: "Daily system backup"
+        minute: "0"
+        hour: "{{ backup_time.split(':')[0] }}"
+        job: "/usr/local/bin/backup.sh >> /var/log/backup.log 2>&1"
+        user: root
+    
+    - name: Schedule database backup cron job
+      cron:
+        name: "Daily database backup"
+        minute: "30"
+        hour: "{{ backup_time.split(':')[0] }}"
+        job: "/usr/local/bin/backup-db.sh >> /var/log/backup-db.log 2>&1"
+        user: root
+      when: "'databases' in group_names"
+    
+    - name: Create restore script
+      copy:
+        content: |
+          #!/bin/bash
+          
+          if [ $# -eq 0 ]; then
+            echo "Usage: $0 <backup_file>"
+            exit 1
+          fi
+          
+          BACKUP_FILE="$1"
+          
+          if [ ! -f "$BACKUP_FILE" ]; then
+            echo "Backup file not found: $BACKUP_FILE"
+            exit 1
+          fi
+          
+          echo "Restoring from: $BACKUP_FILE"
+          tar -xzf "$BACKUP_FILE" -C /
+          
+          echo "Restore completed"
+        dest: /usr/local/bin/restore.sh
+        mode: '0755'

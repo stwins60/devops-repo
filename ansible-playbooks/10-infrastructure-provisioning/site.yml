@@ -1,0 +1,127 @@
+---
+- name: Provision Complete Infrastructure
+  hosts: localhost
+  gather_facts: no
+  
+  vars:
+    project_name: "myproject"
+    environment: "production"
+    
+  tasks:
+    - name: Display provisioning info
+      debug:
+        msg: "Starting infrastructure provisioning for {{ project_name }} - {{ environment }}"
+
+- name: Setup Network Infrastructure
+  hosts: all
+  become: yes
+  
+  tasks:
+    - name: Configure network interfaces
+      template:
+        src: templates/network-config.j2
+        dest: /etc/netplan/01-netcfg.yaml
+      when: ansible_os_family == "Debian"
+    
+    - name: Configure DNS servers
+      copy:
+        content: |
+          nameserver 8.8.8.8
+          nameserver 8.8.4.4
+        dest: /etc/resolv.conf
+        mode: '0644'
+
+- name: Setup Load Balancers
+  hosts: loadbalancers
+  become: yes
+  
+  roles:
+    - common
+    - haproxy
+
+- name: Setup Web Servers
+  hosts: webservers
+  become: yes
+  serial: 1
+  
+  tasks:
+    - name: Install web server
+      include_role:
+        name: nginx
+    
+    - name: Deploy application
+      include_role:
+        name: application
+
+- name: Setup Database Servers
+  hosts: databases
+  become: yes
+  
+  tasks:
+    - name: Install database
+      include_role:
+        name: postgresql
+    
+    - name: Configure replication
+      include_role:
+        name: db-replication
+
+- name: Setup Monitoring
+  hosts: monitoring
+  become: yes
+  
+  tasks:
+    - name: Install monitoring stack
+      include_role:
+        name: prometheus
+    
+    - name: Configure alerting
+      include_role:
+        name: alertmanager
+
+- name: Verify Infrastructure
+  hosts: all
+  become: yes
+  
+  tasks:
+    - name: Check services
+      systemd:
+        name: "{{ item }}"
+        state: started
+      register: service_status
+      failed_when: false
+      loop:
+        - nginx
+        - postgresql
+        - prometheus
+    
+    - name: Run health checks
+      uri:
+        url: "http://{{ ansible_host }}/health"
+        status_code: 200
+      register: health_check
+      failed_when: false
+      when: "'webservers' in group_names"
+    
+    - name: Generate infrastructure report
+      template:
+        src: templates/report.j2
+        dest: "/tmp/infrastructure-report-{{ ansible_hostname }}.txt"
+      delegate_to: localhost
+
+- name: Post-Provisioning Tasks
+  hosts: localhost
+  gather_facts: no
+  
+  tasks:
+    - name: Collect all reports
+      shell: cat /tmp/infrastructure-report-*.txt
+      register: full_report
+    
+    - name: Display infrastructure status
+      debug:
+        msg: "{{ full_report.stdout_lines }}"
+    
+    - name: Send notification
+      debug:
+        msg: "Infrastructure provisioning completed successfully!"

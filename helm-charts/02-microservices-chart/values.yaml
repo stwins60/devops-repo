@@ -1,0 +1,20 @@
+apiGateway:
+  replicaCount: 2
+  image:
+    repository: api-gateway
+    tag: latest
+
+authService:
+  replicaCount: 2
+  image:
+    repository: auth-service
+    tag: latest
+
+postgresql:
+  enabled: true
+  auth:
+    database: microservices
+
+redis:
+  enabled: true
+  architecture: standalone

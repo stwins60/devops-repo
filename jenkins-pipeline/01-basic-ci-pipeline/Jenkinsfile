@@ -1,0 +1,45 @@
+pipeline {
+    agent any
+    
+    environment {
+        APP_NAME = 'my-application'
+        BUILD_NUMBER = "${env.BUILD_NUMBER}"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/example/repo.git'
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                sh 'echo "Building application..."'
+                sh 'make build'
+            }
+        }
+        
+        stage('Test') {
+            steps {
+                sh 'echo "Running tests..."'
+                sh 'make test'
+            }
+        }
+        
+        stage('Archive') {
+            steps {
+                archiveArtifacts artifacts: 'dist/**', fingerprint: true
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo 'Pipeline succeeded!'
+        }
+        failure {
+            echo 'Pipeline failed!'
+        }
+    }
+}

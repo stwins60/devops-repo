@@ -1,0 +1,97 @@
+---
+- name: User Management
+  hosts: all
+  become: yes
+  
+  vars:
+    admin_users:
+      - name: admin1
+        ssh_key: "ssh-rsa AAAAB3NzaC1yc2E... admin1@example.com"
+        sudo: yes
+      - name: admin2
+        ssh_key: "ssh-rsa AAAAB3NzaC1yc2E... admin2@example.com"
+        sudo: yes
+    
+    app_users:
+      - name: deployer
+        ssh_key: "ssh-rsa AAAAB3NzaC1yc2E... deployer@example.com"
+        sudo: no
+    
+  tasks:
+    - name: Create admin group
+      group:
+        name: admins
+        state: present
+    
+    - name: Create admin users
+      user:
+        name: "{{ item.name }}"
+        groups: admins
+        append: yes
+        shell: /bin/bash
+        create_home: yes
+      loop: "{{ admin_users }}"
+    
+    - name: Add SSH keys for admin users
+      authorized_key:
+        user: "{{ item.name }}"
+        key: "{{ item.ssh_key }}"
+        state: present
+      loop: "{{ admin_users }}"
+    
+    - name: Configure sudo for admin users
+      lineinfile:
+        path: /etc/sudoers.d/{{ item.name }}
+        line: "{{ item.name }} ALL=(ALL) NOPASSWD:ALL"
+        create: yes
+        mode: '0440'
+        validate: 'visudo -cf %s'
+      loop: "{{ admin_users }}"
+      when: item.sudo
+    
+    - name: Create application users
+      user:
+        name: "{{ item.name }}"
+        shell: /bin/bash
+        create_home: yes
+        system: yes
+      loop: "{{ app_users }}"
+    
+    - name: Add SSH keys for app users
+      authorized_key:
+        user: "{{ item.name }}"
+        key: "{{ item.ssh_key }}"
+        state: present
+      loop: "{{ app_users }}"
+    
+    - name: Configure password policy
+      lineinfile:
+        path: /etc/login.defs
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+      loop:
+        - { regexp: '^PASS_MAX_DAYS', line: 'PASS_MAX_DAYS   90' }
+        - { regexp: '^PASS_MIN_DAYS', line: 'PASS_MIN_DAYS   1' }
+        - { regexp: '^PASS_WARN_AGE', line: 'PASS_WARN_AGE   7' }
+    
+    - name: Remove old users
+      user:
+        name: "{{ item }}"
+        state: absent
+        remove: yes
+      loop: []  # Add users to remove here
+    
+    - name: Audit user accounts
+      shell: |
+        echo "=== User Audit Report ==="
+        echo "Active users:"
+        cut -d: -f1 /etc/passwd | grep -v "^#"
+        echo ""
+        echo "Users with sudo access:"
+        grep -Po '^sudo.+:\K.*$' /etc/group
+      register: user_audit
+      changed_when: false
+    
+    - name: Display user audit
+      debug:
+        msg: "{{ user_audit.stdout_lines }}"

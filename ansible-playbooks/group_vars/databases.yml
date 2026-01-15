@@ -1,0 +1,35 @@
+---
+# Variables for database servers
+
+# MySQL/MariaDB configuration
+db_type: "mysql"
+db_version: "8.0"
+db_port: 3306
+db_root_password: "{{ vault_db_root_password }}"
+
+# Database settings
+db_name: "myapp_db"
+db_user: "myapp_user"
+db_password: "{{ vault_db_password }}"
+db_host: "localhost"
+
+# Performance tuning
+max_connections: 200
+innodb_buffer_pool_size: "1G"
+query_cache_size: "64M"
+
+# Backup configuration
+backup_enabled: true
+backup_directory: "/var/backups/mysql"
+backup_retention_days: 7
+backup_schedule: "0 2 * * *"
+
+# Replication (if applicable)
+replication_enabled: false
+master_host: ""
+replication_user: "repl_user"
+replication_password: "{{ vault_replication_password }}"
+
+# Security
+bind_address: "0.0.0.0"
+skip_name_resolve: true

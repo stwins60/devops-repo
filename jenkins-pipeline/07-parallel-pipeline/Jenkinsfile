@@ -1,0 +1,84 @@
+pipeline {
+    agent none
+    
+    stages {
+        stage('Checkout') {
+            agent any
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Parallel Build') {
+            parallel {
+                stage('Linux Build') {
+                    agent { label 'linux' }
+                    steps {
+                        sh 'make build-linux'
+                        sh 'make test-linux'
+                    }
+                }
+                
+                stage('Windows Build') {
+                    agent { label 'windows' }
+                    steps {
+                        bat 'make build-windows'
+                        bat 'make test-windows'
+                    }
+                }
+                
+                stage('Mac Build') {
+                    agent { label 'macos' }
+                    steps {
+                        sh 'make build-macos'
+                        sh 'make test-macos'
+                    }
+                }
+            }
+        }
+        
+        stage('Parallel Tests') {
+            parallel {
+                stage('Unit Tests') {
+                    agent any
+                    steps {
+                        sh 'npm run test:unit'
+                    }
+                }
+                
+                stage('Integration Tests') {
+                    agent any
+                    steps {
+                        sh 'npm run test:integration'
+                    }
+                }
+                
+                stage('E2E Tests') {
+                    agent any
+                    steps {
+                        sh 'npm run test:e2e'
+                    }
+                }
+                
+                stage('Performance Tests') {
+                    agent any
+                    steps {
+                        sh 'npm run test:performance'
+                    }
+                }
+            }
+        }
+        
+        stage('Aggregate Results') {
+            agent any
+            steps {
+                junit 'reports/**/*.xml'
+                publishHTML([
+                    reportDir: 'reports',
+                    reportFiles: 'index.html',
+                    reportName: 'Test Results'
+                ])
+            }
+        }
+    }
+}

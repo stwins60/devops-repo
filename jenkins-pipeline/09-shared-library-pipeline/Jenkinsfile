@@ -1,0 +1,86 @@
+@Library('my-shared-library') _
+
+pipeline {
+    agent any
+    
+    environment {
+        APP_NAME = 'my-app'
+        ENVIRONMENT = 'production'
+    }
+    
+    stages {
+        stage('Setup') {
+            steps {
+                script {
+                    common.printBanner(env.APP_NAME)
+                    common.validateEnvironment()
+                }
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                script {
+                    build.compile(env.APP_NAME)
+                    build.createArtifact()
+                }
+            }
+        }
+        
+        stage('Test') {
+            steps {
+                script {
+                    test.runUnitTests()
+                    test.runIntegrationTests()
+                    test.publishResults()
+                }
+            }
+        }
+        
+        stage('Security Scan') {
+            steps {
+                script {
+                    security.scanDependencies()
+                    security.scanCode()
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                script {
+                    deploy.toEnvironment(env.ENVIRONMENT)
+                    deploy.runSmokeTests()
+                }
+            }
+        }
+        
+        stage('Verify') {
+            steps {
+                script {
+                    monitoring.checkHealth()
+                    monitoring.validateMetrics()
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            script {
+                notifications.send(currentBuild.result)
+            }
+        }
+        success {
+            script {
+                common.archiveArtifacts()
+            }
+        }
+        failure {
+            script {
+                common.sendAlert()
+                deploy.rollback(env.ENVIRONMENT)
+            }
+        }
+    }
+}

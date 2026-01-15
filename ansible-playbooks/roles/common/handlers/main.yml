@@ -1,0 +1,12 @@
+---
+# Common role handlers
+
+- name: Restart SSH
+  service:
+    name: sshd
+    state: restarted
+
+- name: Reload firewall
+  ufw:
+    state: reloaded
+  when: ansible_os_family == "Debian"

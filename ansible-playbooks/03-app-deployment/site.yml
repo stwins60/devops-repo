@@ -1,0 +1,88 @@
+---
+- name: Deploy Application
+  hosts: application
+  become: yes
+  
+  vars:
+    app_name: "myapp"
+    app_user: "appuser"
+    app_path: "/opt/{{ app_name }}"
+    app_version: "latest"
+    
+  tasks:
+    - name: Create application user
+      user:
+        name: "{{ app_user }}"
+        system: yes
+        shell: /bin/bash
+        home: "{{ app_path }}"
+    
+    - name: Create application directory
+      file:
+        path: "{{ app_path }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0755'
+    
+    - name: Install Node.js
+      apt:
+        name:
+          - nodejs
+          - npm
+        state: present
+    
+    - name: Copy application files
+      synchronize:
+        src: "{{ playbook_dir }}/files/app/"
+        dest: "{{ app_path }}/"
+        delete: yes
+        rsync_opts:
+          - "--exclude=node_modules"
+          - "--exclude=.git"
+    
+    - name: Set ownership
+      file:
+        path: "{{ app_path }}"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        recurse: yes
+    
+    - name: Install dependencies
+      npm:
+        path: "{{ app_path }}"
+        state: present
+      become_user: "{{ app_user }}"
+    
+    - name: Copy environment file
+      template:
+        src: templates/env.j2
+        dest: "{{ app_path }}/.env"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0600'
+    
+    - name: Copy systemd service file
+      template:
+        src: templates/app.service.j2
+        dest: /etc/systemd/system/{{ app_name }}.service
+        mode: '0644'
+      notify:
+        - Reload systemd
+        - Restart application
+    
+    - name: Enable and start application
+      systemd:
+        name: "{{ app_name }}"
+        enabled: yes
+        state: started
+  
+  handlers:
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+    
+    - name: Restart application
+      systemd:
+        name: "{{ app_name }}"
+        state: restarted

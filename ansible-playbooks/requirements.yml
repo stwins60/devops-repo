@@ -1,0 +1,25 @@
+---
+# Ansible Galaxy Collections
+collections:
+  - name: community.general
+    version: ">=5.0.0"
+  
+  - name: ansible.posix
+    version: ">=1.4.0"
+  
+  - name: community.docker
+    version: ">=3.0.0"
+  
+  - name: kubernetes.core
+    version: ">=2.3.0"
+
+# Ansible Galaxy Roles
+roles:
+  - name: geerlingguy.nginx
+    version: "3.1.4"
+  
+  - name: geerlingguy.mysql
+    version: "4.3.3"
+  
+  - name: geerlingguy.docker
+    version: "6.1.0"

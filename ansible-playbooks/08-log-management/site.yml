@@ -1,0 +1,120 @@
+---
+- name: Configure Log Management
+  hosts: all
+  become: yes
+  
+  vars:
+    log_server: "192.168.1.100"
+    log_retention_days: 30
+    
+  tasks:
+    - name: Install logging packages
+      apt:
+        name:
+          - rsyslog
+          - logrotate
+        state: present
+    
+    - name: Configure rsyslog for remote logging
+      blockinfile:
+        path: /etc/rsyslog.conf
+        block: |
+          # Forward logs to central server
+          *.* @@{{ log_server }}:514
+        marker: "# {mark} ANSIBLE MANAGED BLOCK"
+      notify: Restart rsyslog
+      when: "'logging_server' not in group_names"
+    
+    - name: Configure rsyslog server
+      blockinfile:
+        path: /etc/rsyslog.conf
+        block: |
+          # Enable UDP syslog reception
+          module(load="imudp")
+          input(type="imudp" port="514")
+          
+          # Enable TCP syslog reception
+          module(load="imtcp")
+          input(type="imtcp" port="514")
+          
+          # Template for remote logs
+          $template RemoteLogs,"/var/log/remote/%HOSTNAME%/%PROGRAMNAME%.log"
+          *.* ?RemoteLogs
+        marker: "# {mark} ANSIBLE MANAGED BLOCK"
+      notify: Restart rsyslog
+      when: "'logging_server' in group_names"
+    
+    - name: Create log rotation config
+      copy:
+        content: |
+          /var/log/*.log {
+              daily
+              rotate {{ log_retention_days }}
+              compress
+              delaycompress
+              notifempty
+              create 0640 root root
+              sharedscripts
+              postrotate
+                  /usr/lib/rsyslog/rsyslog-rotate
+              endscript
+          }
+          
+          /var/log/remote/*/*.log {
+              daily
+              rotate {{ log_retention_days }}
+              compress
+              delaycompress
+              notifempty
+              create 0640 root root
+              missingok
+          }
+        dest: /etc/logrotate.d/custom
+        mode: '0644'
+    
+    - name: Create log analysis script
+      copy:
+        content: |
+          #!/bin/bash
+          
+          # Generate log summary
+          echo "=== Log Summary for $(date) ==="
+          echo ""
+          
+          echo "Recent Errors:"
+          grep -i error /var/log/syslog | tail -10
+          echo ""
+          
+          echo "Recent SSH Logins:"
+          grep "Accepted" /var/log/auth.log | tail -10
+          echo ""
+          
+          echo "Disk Usage:"
+          df -h
+          echo ""
+          
+          echo "Memory Usage:"
+          free -h
+        dest: /usr/local/bin/log-summary.sh
+        mode: '0755'
+    
+    - name: Schedule daily log analysis
+      cron:
+        name: "Daily log analysis"
+        minute: "0"
+        hour: "6"
+        job: "/usr/local/bin/log-summary.sh | mail -s 'Daily Log Summary' admin@example.com"
+        user: root
+      when: "'logging_server' in group_names"
+    
+    - name: Start and enable rsyslog
+      systemd:
+        name: rsyslog
+        state: started
+        enabled: yes
+  
+  handlers:
+    - name: Restart rsyslog
+      systemd:
+        name: rsyslog
+        state: restarted

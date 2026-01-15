@@ -1,0 +1,92 @@
+pipeline {
+    agent any
+    
+    environment {
+        SLACK_CHANNEL = '#devops'
+        EMAIL_RECIPIENTS = 'team@example.com'
+    }
+    
+    stages {
+        stage('Notify Start') {
+            steps {
+                script {
+                    notifyStart()
+                }
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                sh 'make build'
+            }
+        }
+        
+        stage('Test') {
+            steps {
+                sh 'make test'
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                sh 'make deploy'
+            }
+        }
+    }
+    
+    post {
+        success {
+            script {
+                notifySuccess()
+            }
+        }
+        failure {
+            script {
+                notifyFailure()
+            }
+        }
+        always {
+            script {
+                sendMetrics()
+            }
+        }
+    }
+}
+
+def notifyStart() {
+    slackSend(
+        channel: env.SLACK_CHANNEL,
+        color: 'good',
+        message: "Build Started: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+    )
+}
+
+def notifySuccess() {
+    slackSend(
+        channel: env.SLACK_CHANNEL,
+        color: 'good',
+        message: "Build Successful: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+    )
+    emailext(
+        subject: "Build Success: ${env.JOB_NAME}",
+        body: "Build completed successfully",
+        to: env.EMAIL_RECIPIENTS
+    )
+}
+
+def notifyFailure() {
+    slackSend(
+        channel: env.SLACK_CHANNEL,
+        color: 'danger',
+        message: "Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+    )
+    emailext(
+        subject: "Build Failed: ${env.JOB_NAME}",
+        body: "Build failed. Please check logs.",
+        to: env.EMAIL_RECIPIENTS
+    )
+}
+
+def sendMetrics() {
+    sh 'curl -X POST https://metrics.example.com/jenkins -d "build=${env.BUILD_NUMBER}"'
+}

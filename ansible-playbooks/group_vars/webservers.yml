@@ -1,0 +1,30 @@
+---
+# Variables for webservers
+
+# Nginx configuration
+nginx_version: "latest"
+nginx_port: 80
+nginx_ssl_port: 443
+nginx_worker_processes: auto
+nginx_worker_connections: 1024
+
+# Application configuration
+app_name: "myapp"
+app_port: 3000
+app_user: "www-data"
+app_directory: "/var/www/{{ app_name }}"
+
+# SSL/TLS
+ssl_enabled: true
+ssl_certificate_path: "/etc/ssl/certs/{{ app_name }}.crt"
+ssl_certificate_key_path: "/etc/ssl/private/{{ app_name }}.key"
+
+# Performance tuning
+max_upload_size: "100M"
+client_body_timeout: 60
+client_header_timeout: 60
+
+# Logging
+access_log_path: "/var/log/nginx/{{ app_name }}_access.log"
+error_log_path: "/var/log/nginx/{{ app_name }}_error.log"
+log_level: "warn"

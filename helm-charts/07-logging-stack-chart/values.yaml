@@ -1,0 +1,19 @@
+elasticsearch:
+  replicas: 3
+  volumeClaimTemplate:
+    resources:
+      requests:
+        storage: 30Gi
+
+kibana:
+  service:
+    type: LoadBalancer
+
+filebeat:
+  daemonset:
+    enabled: true
+  config:
+    filebeat.inputs:
+    - type: container
+      paths:
+        - /var/log/containers/*.log

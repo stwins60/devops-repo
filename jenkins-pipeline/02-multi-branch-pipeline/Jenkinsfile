@@ -1,0 +1,52 @@
+pipeline {
+    agent any
+    
+    environment {
+        BRANCH_NAME = "${env.BRANCH_NAME}"
+        IS_PR = "${env.CHANGE_ID != null}"
+    }
+    
+    stages {
+        stage('Setup') {
+            steps {
+                script {
+                    echo "Building branch: ${BRANCH_NAME}"
+                    if (env.CHANGE_ID) {
+                        echo "Pull Request #${env.CHANGE_ID}"
+                    }
+                }
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                sh 'npm install'
+                sh 'npm run build'
+            }
+        }
+        
+        stage('Test') {
+            parallel {
+                stage('Unit Tests') {
+                    steps {
+                        sh 'npm run test:unit'
+                    }
+                }
+                stage('Integration Tests') {
+                    steps {
+                        sh 'npm run test:integration'
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            when {
+                branch 'main'
+            }
+            steps {
+                sh 'echo "Deploying to production..."'
+            }
+        }
+    }
+}

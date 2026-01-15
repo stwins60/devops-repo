@@ -1,0 +1,37 @@
+---
+# Variables for all hosts
+
+# System configuration
+timezone: "UTC"
+ntp_servers:
+  - "0.pool.ntp.org"
+  - "1.pool.ntp.org"
+
+# User management
+admin_users:
+  - name: ansible
+    groups: sudo
+    shell: /bin/bash
+
+# SSH configuration
+ssh_port: 22
+ssh_permit_root_login: "no"
+ssh_password_authentication: "no"
+
+# Firewall settings
+firewall_allowed_tcp_ports:
+  - 22
+  - 80
+  - 443
+
+# Monitoring
+enable_monitoring: true
+monitoring_agent: "node_exporter"
+
+# Logging
+log_retention_days: 30
+syslog_server: "logs.example.com"
+
+# Security
+auto_security_updates: true
+fail2ban_enabled: true

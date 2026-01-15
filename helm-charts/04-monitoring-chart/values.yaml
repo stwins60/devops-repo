@@ -1,0 +1,21 @@
+prometheus:
+  server:
+    retention: "15d"
+    persistentVolume:
+      size: 50Gi
+  alertmanager:
+    enabled: true
+
+grafana:
+  adminPassword: admin
+  persistence:
+    enabled: true
+    size: 10Gi
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://prometheus-server
+        isDefault: true

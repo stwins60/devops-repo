@@ -1,0 +1,68 @@
+pipeline {
+    agent any
+    
+    parameters {
+        choice(name: 'RELEASE_TYPE', choices: ['patch', 'minor', 'major'], description: 'Release type')
+    }
+    
+    environment {
+        GIT_CREDENTIALS = credentials('git-credentials')
+        NPM_TOKEN = credentials('npm-token')
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/example/repo.git'
+            }
+        }
+        
+        stage('Version Bump') {
+            steps {
+                script {
+                    sh "npm version ${params.RELEASE_TYPE}"
+                    env.NEW_VERSION = sh(script: 'node -p "require(\'./package.json\').version"', returnStdout: true).trim()
+                    echo "New version: ${env.NEW_VERSION}"
+                }
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                sh 'npm ci'
+                sh 'npm run build'
+            }
+        }
+        
+        stage('Test') {
+            steps {
+                sh 'npm test'
+            }
+        }
+        
+        stage('Generate Changelog') {
+            steps {
+                sh 'npm run changelog'
+            }
+        }
+        
+        stage('Create Tag') {
+            steps {
+                sh "git tag v${env.NEW_VERSION}"
+                sh 'git push origin --tags'
+            }
+        }
+        
+        stage('Publish') {
+            steps {
+                sh 'npm publish'
+            }
+        }
+        
+        stage('Create Release') {
+            steps {
+                sh "gh release create v${env.NEW_VERSION} --notes-file CHANGELOG.md"
+            }
+        }
+    }
+}

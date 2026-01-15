@@ -1,0 +1,61 @@
+---
+- name: Setup HAProxy Load Balancer
+  hosts: loadbalancers
+  become: yes
+  
+  vars:
+    haproxy_stats_port: 8080
+    backend_servers:
+      - { name: "web01", ip: "192.168.1.10", port: 80 }
+      - { name: "web02", ip: "192.168.1.11", port: 80 }
+    
+  tasks:
+    - name: Install HAProxy
+      apt:
+        name: haproxy
+        state: present
+        update_cache: yes
+    
+    - name: Backup original HAProxy config
+      copy:
+        src: /etc/haproxy/haproxy.cfg
+        dest: /etc/haproxy/haproxy.cfg.backup
+        remote_src: yes
+    
+    - name: Configure HAProxy
+      template:
+        src: templates/haproxy.cfg.j2
+        dest: /etc/haproxy/haproxy.cfg
+        validate: 'haproxy -c -f %s'
+      notify: Restart HAProxy
+    
+    - name: Enable HAProxy
+      systemd:
+        name: haproxy
+        enabled: yes
+        state: started
+    
+    - name: Configure firewall for HTTP
+      ufw:
+        rule: allow
+        port: '80'
+        proto: tcp
+    
+    - name: Configure firewall for HTTPS
+      ufw:
+        rule: allow
+        port: '443'
+        proto: tcp
+    
+    - name: Configure firewall for stats
+      ufw:
+        rule: allow
+        port: "{{ haproxy_stats_port }}"
+        proto: tcp
+        from_ip: 192.168.1.0/24
+  
+  handlers:
+    - name: Restart HAProxy
+      systemd:
+        name: haproxy
+        state: restarted

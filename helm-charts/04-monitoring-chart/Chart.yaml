@@ -1,0 +1,13 @@
+apiVersion: v2
+name: monitoring-stack
+description: Complete monitoring solution with Prometheus and Grafana
+type: application
+version: 1.0.0
+
+dependencies:
+  - name: prometheus
+    version: "23.x.x"
+    repository: "https://prometheus-community.github.io/helm-charts"
+  - name: grafana
+    version: "6.x.x"
+    repository: "https://grafana.github.io/helm-charts"

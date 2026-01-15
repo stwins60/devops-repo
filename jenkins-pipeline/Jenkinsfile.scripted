@@ -1,0 +1,80 @@
+node {
+    def dockerImage
+    def buildNumber = env.BUILD_NUMBER
+    def gitCommit
+    
+    try {
+        stage('Checkout') {
+            echo 'Checking out source code...'
+            checkout scm
+            gitCommit = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
+        }
+        
+        stage('Build') {
+            echo 'Building application...'
+            sh '''
+                echo "Building application..."
+                # Add build commands
+            '''
+        }
+        
+        stage('Test') {
+            echo 'Running tests...'
+            parallel(
+                'Unit Tests': {
+                    sh 'echo "Running unit tests..."'
+                },
+                'Integration Tests': {
+                    sh 'echo "Running integration tests..."'
+                }
+            )
+        }
+        
+        stage('Docker Build') {
+            if (env.BRANCH_NAME == 'main') {
+                echo 'Building Docker image...'
+                dockerImage = docker.build("myapp:${buildNumber}")
+            }
+        }
+        
+        stage('Docker Push') {
+            if (env.BRANCH_NAME == 'main') {
+                echo 'Pushing Docker image...'
+                docker.withRegistry('https://docker.io', 'docker-credentials') {
+                    dockerImage.push("${buildNumber}")
+                    dockerImage.push("latest")
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            if (env.BRANCH_NAME == 'main') {
+                input message: 'Deploy to production?', ok: 'Deploy'
+                echo 'Deploying to production...'
+                sh '''
+                    echo "Deploying application..."
+                    # Add deployment commands
+                '''
+            }
+        }
+        
+        currentBuild.result = 'SUCCESS'
+        
+    } catch (Exception e) {
+        currentBuild.result = 'FAILURE'
+        throw e
+    } finally {
+        stage('Cleanup') {
+            echo 'Cleaning up...'
+            cleanWs()
+        }
+        
+        stage('Notification') {
+            if (currentBuild.result == 'SUCCESS') {
+                echo 'Build succeeded!'
+            } else {
+                echo 'Build failed!'
+            }
+        }
+    }
+}

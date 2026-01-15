@@ -1,0 +1,65 @@
+pipeline {
+    agent any
+    
+    tools {
+        nodejs 'NodeJS 18'
+    }
+    
+    stages {
+        stage('Install Dependencies') {
+            steps {
+                sh 'npm ci'
+            }
+        }
+        
+        stage('Lint') {
+            steps {
+                sh 'npm run lint'
+            }
+        }
+        
+        stage('Unit Tests') {
+            steps {
+                sh 'npm run test:unit -- --coverage'
+                junit 'reports/junit.xml'
+                publishHTML([
+                    reportDir: 'coverage',
+                    reportFiles: 'index.html',
+                    reportName: 'Coverage Report'
+                ])
+            }
+        }
+        
+        stage('Integration Tests') {
+            steps {
+                sh 'npm run test:integration'
+            }
+        }
+        
+        stage('E2E Tests') {
+            steps {
+                sh 'npm run test:e2e'
+            }
+        }
+        
+        stage('Security Scan') {
+            steps {
+                sh 'npm audit'
+                sh 'npm run security-scan'
+            }
+        }
+        
+        stage('Code Quality') {
+            steps {
+                sh 'sonar-scanner'
+            }
+        }
+    }
+    
+    post {
+        always {
+            publishTestResults()
+            publishCoverage()
+        }
+    }
+}

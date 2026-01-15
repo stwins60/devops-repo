@@ -1,0 +1,13 @@
+# Staging Inventory
+
+[webservers]
+web-staging.example.com ansible_host=10.1.1.10
+
+[databases]
+db-staging.example.com ansible_host=10.1.2.10
+
+[all:vars]
+ansible_user=ansible
+ansible_python_interpreter=/usr/bin/python3
+ansible_ssh_private_key_file=~/.ssh/id_rsa
+environment=staging

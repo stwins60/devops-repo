@@ -1,0 +1,63 @@
+pipeline {
+    agent any
+    
+    triggers {
+        cron('H 2 * * *')  // Run daily at 2 AM
+    }
+    
+    parameters {
+        booleanParam(name: 'RUN_TESTS', defaultValue: true, description: 'Run test suite')
+        booleanParam(name: 'SEND_REPORT', defaultValue: true, description: 'Send report')
+    }
+    
+    stages {
+        stage('Cleanup') {
+            steps {
+                sh 'rm -rf build/'
+                sh 'rm -rf reports/'
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                sh 'make build'
+            }
+        }
+        
+        stage('Test') {
+            when {
+                expression { params.RUN_TESTS == true }
+            }
+            steps {
+                sh 'make test'
+                junit 'reports/junit.xml'
+            }
+        }
+        
+        stage('Generate Report') {
+            steps {
+                sh 'make report'
+            }
+        }
+        
+        stage('Send Report') {
+            when {
+                expression { params.SEND_REPORT == true }
+            }
+            steps {
+                emailext(
+                    subject: "Nightly Build Report - ${env.BUILD_NUMBER}",
+                    body: readFile('reports/summary.html'),
+                    mimeType: 'text/html',
+                    to: 'team@example.com'
+                )
+            }
+        }
+        
+        stage('Cleanup Old Builds') {
+            steps {
+                sh 'find ./builds -mtime +7 -delete'
+            }
+        }
+    }
+}

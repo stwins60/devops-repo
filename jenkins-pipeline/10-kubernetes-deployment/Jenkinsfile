@@ -1,0 +1,107 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_REGISTRY = 'registry.example.com'
+        K8S_NAMESPACE = 'production'
+        APP_NAME = 'my-app'
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Build Image') {
+            steps {
+                script {
+                    sh """
+                        echo 'Building image...'
+                        buildah bud -t ${DOCKER_REGISTRY}/${APP_NAME}:${IMAGE_TAG} .
+                    """
+                }
+            }
+        }
+        
+        stage('Push Image') {
+            steps {
+                script {
+                    sh """
+                        buildah push ${DOCKER_REGISTRY}/${APP_NAME}:${IMAGE_TAG}
+                    """
+                }
+            }
+        }
+        
+        stage('Update Manifests') {
+            steps {
+                sh """
+                    sed -i 's|IMAGE_TAG|${IMAGE_TAG}|g' k8s/deployment.yaml
+                """
+            }
+        }
+        
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    withKubeConfig([credentialsId: 'kubeconfig']) {
+                        sh """
+                            kubectl apply -f k8s/namespace.yaml
+                            kubectl apply -f k8s/configmap.yaml -n ${K8S_NAMESPACE}
+                            kubectl apply -f k8s/secret.yaml -n ${K8S_NAMESPACE}
+                            kubectl apply -f k8s/deployment.yaml -n ${K8S_NAMESPACE}
+                            kubectl apply -f k8s/service.yaml -n ${K8S_NAMESPACE}
+                            kubectl apply -f k8s/ingress.yaml -n ${K8S_NAMESPACE}
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Wait for Rollout') {
+            steps {
+                script {
+                    withKubeConfig([credentialsId: 'kubeconfig']) {
+                        sh """
+                            kubectl rollout status deployment/${APP_NAME} -n ${K8S_NAMESPACE}
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Health Check') {
+            steps {
+                script {
+                    withKubeConfig([credentialsId: 'kubeconfig']) {
+                        sh """
+                            kubectl get pods -n ${K8S_NAMESPACE} -l app=${APP_NAME}
+                            kubectl logs -l app=${APP_NAME} -n ${K8S_NAMESPACE} --tail=50
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Smoke Tests') {
+            steps {
+                sh './scripts/smoke-tests.sh'
+            }
+        }
+    }
+    
+    post {
+        failure {
+            script {
+                withKubeConfig([credentialsId: 'kubeconfig']) {
+                    sh """
+                        kubectl rollout undo deployment/${APP_NAME} -n ${K8S_NAMESPACE}
+                    """
+                }
+            }
+        }
+    }
+}

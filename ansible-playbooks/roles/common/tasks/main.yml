@@ -1,0 +1,95 @@
+---
+# Common role tasks
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  when: ansible_os_family == "Debian"
+
+- name: Install common packages
+  package:
+    name:
+      - curl
+      - wget
+      - git
+      - vim
+      - htop
+      - net-tools
+      - unzip
+      - ca-certificates
+    state: present
+
+- name: Set timezone
+  timezone:
+    name: "{{ timezone }}"
+
+- name: Configure NTP
+  package:
+    name: ntp
+    state: present
+
+- name: Start and enable NTP service
+  service:
+    name: ntp
+    state: started
+    enabled: yes
+  when: ansible_os_family == "Debian"
+
+- name: Create admin users
+  user:
+    name: "{{ item.name }}"
+    groups: "{{ item.groups }}"
+    shell: "{{ item.shell }}"
+    state: present
+  loop: "{{ admin_users }}"
+
+- name: Configure SSH
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+  loop:
+    - { regexp: '^PermitRootLogin', line: 'PermitRootLogin {{ ssh_permit_root_login }}' }
+    - { regexp: '^PasswordAuthentication', line: 'PasswordAuthentication {{ ssh_password_authentication }}' }
+  notify: Restart SSH
+
+- name: Install and configure firewall
+  package:
+    name: ufw
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: Allow SSH through firewall
+  ufw:
+    rule: allow
+    port: "{{ ssh_port }}"
+    proto: tcp
+  when: ansible_os_family == "Debian"
+
+- name: Allow specified TCP ports
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop: "{{ firewall_allowed_tcp_ports }}"
+  when: ansible_os_family == "Debian"
+
+- name: Enable firewall
+  ufw:
+    state: enabled
+  when: ansible_os_family == "Debian"
+
+- name: Install fail2ban
+  package:
+    name: fail2ban
+    state: present
+  when: fail2ban_enabled
+
+- name: Start and enable fail2ban
+  service:
+    name: fail2ban
+    state: started
+    enabled: yes
+  when: fail2ban_enabled

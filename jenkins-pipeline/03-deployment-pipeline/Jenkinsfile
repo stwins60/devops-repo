@@ -1,0 +1,62 @@
+pipeline {
+    agent any
+    
+    parameters {
+        choice(name: 'ENVIRONMENT', choices: ['dev', 'staging', 'production'], description: 'Target environment')
+        string(name: 'VERSION', defaultValue: 'latest', description: 'Version to deploy')
+    }
+    
+    stages {
+        stage('Prepare') {
+            steps {
+                script {
+                    echo "Deploying version ${params.VERSION} to ${params.ENVIRONMENT}"
+                }
+            }
+        }
+        
+        stage('Deploy to Dev') {
+            when {
+                expression { params.ENVIRONMENT == 'dev' }
+            }
+            steps {
+                sh './deploy.sh dev ${params.VERSION}'
+            }
+        }
+        
+        stage('Deploy to Staging') {
+            when {
+                expression { params.ENVIRONMENT == 'staging' }
+            }
+            steps {
+                sh './deploy.sh staging ${params.VERSION}'
+                sh './health-check.sh staging'
+            }
+        }
+        
+        stage('Approval') {
+            when {
+                expression { params.ENVIRONMENT == 'production' }
+            }
+            steps {
+                input message: 'Deploy to production?', ok: 'Deploy'
+            }
+        }
+        
+        stage('Deploy to Production') {
+            when {
+                expression { params.ENVIRONMENT == 'production' }
+            }
+            steps {
+                sh './deploy.sh production ${params.VERSION}'
+                sh './health-check.sh production'
+            }
+        }
+    }
+    
+    post {
+        failure {
+            sh './rollback.sh ${params.ENVIRONMENT}'
+        }
+    }
+}

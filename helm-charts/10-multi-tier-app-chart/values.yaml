@@ -1,0 +1,38 @@
+frontend:
+  replicaCount: 3
+  image:
+    repository: frontend-app
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 80
+
+backend:
+  replicaCount: 3
+  image:
+    repository: backend-api
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 8080
+
+database:
+  enabled: true
+  type: postgresql
+  persistence:
+    size: 20Gi
+
+redis:
+  enabled: true
+  architecture: standalone
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: app.example.com
+      paths:
+        - path: /
+          backend: frontend
+        - path: /api
+          backend: backend

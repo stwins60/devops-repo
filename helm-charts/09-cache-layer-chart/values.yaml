@@ -1,0 +1,35 @@
+architecture: replication
+
+master:
+  count: 1
+  persistence:
+    enabled: true
+    size: 8Gi
+
+replica:
+  replicaCount: 2
+  persistence:
+    enabled: true
+    size: 8Gi
+
+sentinel:
+  enabled: true
+  downAfterMilliseconds: 5000
+  failoverTimeout: 10000
+
+auth:
+  enabled: true
+  password: "changeme"
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi

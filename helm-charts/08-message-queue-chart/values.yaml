@@ -1,0 +1,30 @@
+replicaCount: 3
+
+image:
+  repository: rabbitmq
+  tag: "3.12-management"
+
+auth:
+  username: admin
+  password: changeme
+
+service:
+  type: ClusterIP
+  ports:
+    amqp: 5672
+    management: 15672
+
+persistence:
+  enabled: true
+  size: 10Gi
+
+clustering:
+  enabled: true
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi

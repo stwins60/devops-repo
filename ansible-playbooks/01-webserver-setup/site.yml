@@ -1,0 +1,61 @@
+---
+- name: Setup Web Servers
+  hosts: webservers
+  become: yes
+  
+  vars:
+    nginx_port: 80
+    ssl_enabled: true
+    
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+    
+    - name: Install NGINX
+      package:
+        name: nginx
+        state: present
+    
+    - name: Create web root directory
+      file:
+        path: /var/www/html
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: '0755'
+    
+    - name: Copy NGINX configuration
+      template:
+        src: templates/nginx.conf.j2
+        dest: /etc/nginx/sites-available/default
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Reload NGINX
+    
+    - name: Enable NGINX site
+      file:
+        src: /etc/nginx/sites-available/default
+        dest: /etc/nginx/sites-enabled/default
+        state: link
+    
+    - name: Start and enable NGINX
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+    
+    - name: Configure firewall
+      ufw:
+        rule: allow
+        port: "{{ nginx_port }}"
+        proto: tcp
+  
+  handlers:
+    - name: Reload NGINX
+      service:
+        name: nginx
+        state: reloaded
